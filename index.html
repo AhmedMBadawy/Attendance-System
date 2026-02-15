@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus Attendance</title>
+
+<style>
+
+body {
+ font-family: Arial;
+ text-align: center;
+ margin-top: 40px;
+}
+
+input, button {
+ padding: 12px;
+ margin: 6px;
+ width: 260px;
+ font-size: 16px;
+}
+
+#formSection { display:none; }
+#denied { display:none; color:red; }
+#disabled { display:none; color:red; }
+#success { display:none; color:green; }
+
+</style>
+</head>
+
+<body>
+
+<h2>Attendance System</h2>
+
+<div id="checking">Checking location...</div>
+
+<div id="denied">
+❌ You must be inside Campus
+</div>
+
+<div id="disabled">
+❌ Attendance is currently closed
+</div>
+
+<div id="formSection">
+
+<input id="studentId" placeholder="Student ID"><br>
+
+<input id="studentName" placeholder="Student Name"><br>
+
+<input id="lectureCode" placeholder="Lecture Code"><br>
+
+<input id="studentLocation" type="hidden" value="">
+
+<button onclick="submitAttendance()">
+Submit Attendance
+</button>
+
+</div>
+
+<div id="success">
+✅ Attendance recorded successfully
+</div>  
+
+<script>
+
+// ENABLE / DISABLE ATTENDANCE
+const attendanceEnabled = true;
+
+// LECTURE CODE RULES
+const lecturePrefixes = [
+ "CA-DSS",
+ "CA-Inf",
+ "CA-Cry",
+ "He-Com",
+ "He-Alg",
+ "AH-Cry",
+ "AH-Sec",
+ "AS-Alg",
+ "AS-OSS"
+];
+//29.98721403529377, 31.324099553619597
+// YOUR INSTITUTE LOCATIONS (EDIT THESE)
+// Add as many locations as needed. Radius is in meters.
+const allowedLocations = [
+ { lat: 29.98721403529377, lng: 31.324099553619597, radius: 100 },
+ // { lat: 29.8700, lng: 31.3200, radius: 120 },
+];
+
+
+// GOOGLE FORM CONFIG (PER LECTURE PREFIX)
+const formActionByPrefix = {
+ "CA-DSS": "https://docs.google.com/forms/d/e/1FAIpQLSc7puySU0MdO81vNPRFnzRd-GH91woDHyUkgPBD5ukrqp9XDA/formResponse",
+ "CA-Inf": "https://docs.google.com/forms/d/e/1FAIpQLScm2tQXjDm56okwRCcTBeV-MmoJk1Prd8VmbykUHVyu9JXM8w/formResponse",
+ "CA-Cry": "https://docs.google.com/forms/d/e/1FAIpQLSc272sNgL_7W_Mse7XoacC2rk3PnQ5n_A6P0Wvv6Hfz75TnNQ/formResponse",
+ "He-Com": "https://docs.google.com/forms/d/e/1FAIpQLSdpD53jFOhPXBYk2zebz3FwiVaqx2CwZEhJ-4nEau5CUfjQNA/formResponse",
+ "He-Alg": "https://docs.google.com/forms/d/e/1FAIpQLSelG2XN1G0D6_ysBg2C0u7Idc5g5jOzume7YQKWqdPSB-JoSQ/formResponse",
+ "AH-Cry": "https://docs.google.com/forms/d/e/1FAIpQLSeBwSSsJo97kTzxTugjSi9_TO9964PacxCkghGP2uX5-IahhQ/formResponse",
+ "AH-Sec": "https://docs.google.com/forms/d/e/1FAIpQLSc4sexF9Dy8cnikc6QSvMzeCtoP0iucgMqz9m36-7_ZN9tMJg/formResponse",
+ "AS-Alg": "https://docs.google.com/forms/d/e/1FAIpQLSfjeahcNFf24EqzoM3tCsXFds1rykp0JjQpJ11UMeTaLotEaw/formResponse",
+ "AS-OSS": "https://docs.google.com/forms/d/e/1FAIpQLSeztVzvivaWzwne1Opdk4bYwjMiExXFXwZJ9VHmYBaw0TX6zA/formResponse"
+};
+
+const fieldStudentId = "entry.363648377";
+const fieldStudentName = "entry.1024018719";
+const fieldLectureCode = "entry.459549981";
+const fieldStudentLocation = "entry.1152713796";
+
+// Holds last known location string
+let lastLocation = "";
+
+
+
+function getDistance(lat1, lon1, lat2, lon2)
+{
+ const R = 6371000;
+
+ const dLat = (lat2-lat1)*Math.PI/180;
+ const dLon = (lon2-lon1)*Math.PI/180;
+
+ const a =
+ Math.sin(dLat/2)*Math.sin(dLat/2)+
+ Math.cos(lat1*Math.PI/180)*
+ Math.cos(lat2*Math.PI/180)*
+ Math.sin(dLon/2)*Math.sin(dLon/2);
+
+ const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+
+return R*c;
+}
+
+function isInsideAnyAllowedLocation(lat, lng)
+{
+ for(const loc of allowedLocations)
+ {
+  const distance = getDistance(
+   loc.lat,
+   loc.lng,
+   lat,
+   lng
+  );
+
+  if(distance <= loc.radius)
+  {
+   return true;
+  }
+ }
+
+ return false;
+}
+
+
+// CHECK GPS FIRST
+navigator.geolocation.getCurrentPosition(
+
+function(position)
+{
+
+ if(!attendanceEnabled)
+ {
+  document.getElementById("checking").style.display="none";
+  document.getElementById("disabled").style.display="block";
+  return;
+ }
+
+ if(isInsideAnyAllowedLocation(
+   position.coords.latitude,
+   position.coords.longitude
+ ))
+{
+  document.getElementById("checking").style.display="none";
+  document.getElementById("formSection").style.display="block";
+  // Store location string for submission
+  lastLocation = position.coords.latitude.toFixed(6) + "," + position.coords.longitude.toFixed(6);
+  document.getElementById("studentLocation").value = lastLocation;
+}
+else
+{
+  document.getElementById("checking").style.display="none";
+  document.getElementById("denied").style.display="block";
+ }
+
+},
+
+function()
+{
+ alert("Please allow Location Permission");
+},
+
+{enableHighAccuracy:true}
+
+);
+
+
+
+// SUBMIT TO GOOGLE FORM
+function submitAttendance()
+{
+
+ const id =
+ document.getElementById("studentId").value;
+
+ const name =
+ document.getElementById("studentName").value;
+
+ const code =
+ document.getElementById("lectureCode").value;
+
+ const location =
+ document.getElementById("studentLocation").value;
+
+
+ if(!id || !name || !code)
+ {
+  alert("Fill all fields");
+  return;
+ }
+
+ if(!/^[0-9]+$/.test(id))
+ {
+  alert("Student ID must be numbers only");
+  return;
+ }
+
+ if(!/^[A-Za-z ]+$/.test(name))
+ {
+  alert("Student name must be letters only");
+  return;
+ }
+
+ const lectureInfo = validateLectureCode(code);
+ if(!lectureInfo)
+ {
+  alert("Wrong lecture code");
+  return;
+ }
+
+ if(!location)
+ {
+  alert("Location not captured yet");
+  return;
+ }
+
+
+ const formData = new FormData();
+
+ formData.append(fieldStudentId,id);
+ formData.append(fieldStudentName,name);
+ formData.append(fieldLectureCode,code);
+ formData.append(fieldStudentLocation,location);
+
+
+ const formAction = formActionByPrefix[lectureInfo.prefix];
+ if(!formAction)
+ {
+  alert("No form configured for this lecture");
+  return;
+ }
+
+ fetch(formAction,{
+  method:"POST",
+  mode:"no-cors",
+  body:formData
+ });
+
+
+ document.getElementById("formSection").style.display="none";
+ document.getElementById("success").style.display="block";
+
+}
+
+function validateLectureCode(code)
+{
+ const today = new Date();
+ const day = String(today.getDate()).padStart(2,"0");
+ const prefixPattern = lecturePrefixes
+  .map(p => p.replace(/[-/\\^$*+?.()|[\]{}]/g,"\\$&"))
+  .join("|");
+
+ const re = new RegExp("^(" + prefixPattern + ")-" + day + "-([0-9]{4})$","i");
+ const match = code.match(re);
+ if(!match)
+ {
+  return null;
+ }
+
+ const digits = match[2];
+ for(const ch of digits)
+ {
+  if(parseInt(ch,10) % 2 !== 0)
+  {
+   return null;
+  }
+ }
+
+ return { prefix: match[1] };
+}
+</script>
+
+</body>
+</html>
